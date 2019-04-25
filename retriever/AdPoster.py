@@ -44,7 +44,7 @@ class DataRetriever(scrapy.Spider):
         price = response.xpath('//span[@itemprop="price"]/text()').get()
         # tel = response.xpath('//a[starts-with(@href,"tel:")]/span/span/text()').extract_first()
         image_urls = response.xpath('//img[@itemprop="image"]/@src').extract()
-        title_filename = 'ads/%s/text.text' %ref_num
+        title_filename = 'ads/%s/title.text' %ref_num
         description_filename = 'ads/%s/description.text' %ref_num
         address_filename = 'ads/%s/address.text' %ref_num
         price_filename = 'ads/%s/price.text' %ref_num
