@@ -51,7 +51,7 @@ class DataRetriever(scrapy.Spider):
         ad_dir = "ref_" + ref_num
         title = response.xpath('//div[@itemprop="Product"]//h1[@itemprop="name"]/text()').get()
         if title == None:
-            print "Invalid URL. Script will exit."
+            print "Invalid URL. Can not download details. If details have already been downloaded, script will attempt delete and upload."
             sys.exit()
         description = response.xpath('//div[@itemprop="description"]//p/text()').getall()
         address = response.xpath('//span[@itemprop="address"]/text()').get()
@@ -228,8 +228,7 @@ def useSearchById(driver, url):
             driver.find_element_by_xpath(searchInputXpath).send_keys(ref_num)
             print "\nSearch input was sent " + str(ref_num)
             break
-        except Exception as e:
-            print e
+        except Exception:
             sys.stdout.write(".")
             sys.stdout.flush()
     searchBtnXpath = '//button[@name="SearchSubmit"]'
@@ -346,20 +345,29 @@ def insertAddress(driver, data):
     while True:
         try:
             driver.find_element_by_xpath('//textarea[@id="location"]').send_keys(postal_code)
+            print "Address was inserted"
         except Exception:
             print "Address Entry field was not found. Clicking Change button instead and then adding address..."
             locationChangeBtn = '//div[@data-fes-id="locationModule"]//button[normalize-space(text())="Change"]'
-            click(driver, locationChangeBtn)
-            driver.find_element_by_xpath('//textarea[@id="location"]').send_keys(postal_code)
-            print "Address was inserted"
-        try:
-            time.sleep(3)
-            addressSelectBtnXpath = '//textarea[@id="location"]/../../../following-sibling::div/div[1]'
-            click(driver, addressSelectBtnXpath)
-            print "The address suggestion was found and clicked."
-            break
-        except Exception:
-            print "There was no address suggestion to click. Refreshing page and trying again..."
+            try:
+                click(driver, locationChangeBtn)
+                driver.find_element_by_xpath('//textarea[@id="location"]').send_keys(postal_code)
+                print "Address was inserted"
+                changeBtnClicked = True
+            except NoSuchElementException:
+                print "Couldn't find the address change button. Refreshing page and trying again..."
+                changeBtnClicked = False
+        if changeBtnClicked:
+            try:
+                time.sleep(3)
+                addressSelectBtnXpath = '//textarea[@id="location"]/../../../following-sibling::div/div[1]'
+                click(driver, addressSelectBtnXpath)
+                print "The address suggestion was found and clicked."
+                break
+            except Exception:
+                print "There was no address suggestion to click. Refreshing page and trying again..."
+                driver.refresh()
+        else:
             driver.refresh()
 
 def insertPrice(driver, data):
@@ -394,7 +402,6 @@ def getNewUrl(driver):
     print "The new url is " + new_url
     return new_url
 
-
 def saveNewUrl(ref_num, new_url, data):
     jsonFileName = 'ads/ref_%s/details.json'%ref_num
     data['newUrl'] = new_url
@@ -407,6 +414,12 @@ def saveNewUrl(ref_num, new_url, data):
         urlFile.write(new_url.encode('utf-8'))
         print "Wrote new url text file"
 
+def countdownTimer(interval):
+    for i in xrange(interval,0,-1):
+        sys.stdout.write("\r" + str(i)+' seconds left')
+        sys.stdout.flush()
+        time.sleep(1)
+
 def DeleteAndUpload(username, password, url):
     ref_num = getRefNum(url)
     jsonFileName = 'ads/ref_%s/details.json'%ref_num
@@ -414,6 +427,7 @@ def DeleteAndUpload(username, password, url):
         with open(jsonFileName, "r") as jsonFile:
             data = json.load(jsonFile)
     except IOError:
+        print "No downloaded data was found."
         print "Exiting script..."
         sys.exit()
     description = data['description']
@@ -431,8 +445,7 @@ def DeleteAndUpload(username, password, url):
     driver.get(start_url)
     signIn(driver, username, password, start_url)
 
-    deleteAd(driver, url)
-    # insertLocation(driver, data)
+    # deleteAd(driver, url)
 
     postAdBtnXpath = '//a[@title="Post ad"]'
     click(driver, postAdBtnXpath)
@@ -467,18 +480,19 @@ if __name__ == "__main__":
         startTime = datetime.strptime(startTime,"%H:%M").time()
         endTime = item['endTime']
         endTime = datetime.strptime(endTime,"%H:%M").time()
-        interval = item['interval']
+        interval = int(item['interval'])
         while True:
             currentTime = datetime.now().time()
             if currentTime > startTime and currentTime < endTime:
-                print "ready to go"
+                print "Current time is within the URL window"
                 runSpider(url)
                 break
             else:
-                print "waiting"
+                print "Current Time is not within URL window. Waiting..."
         DeleteAndUpload(username, password, url)
 
         print ref_num + " has finished uploading"
-        print "Sleeping for %s"%interval
-        time.sleep(interval)
-    print "crawl complete"
+        print "Sleeping for %s seconds"%interval
+        countdownTimer(interval)
+        print "\n Moving on to next URL"
+    print "All URL's Complete!"
