@@ -17,6 +17,7 @@ class CustomImageNamePipeline(ImagesPipeline):
 
     def get_media_requests(self, item, info):
         for i, image_url in enumerate(item.get('image_urls', []), 1):
+            print "proccessing image number " + str(i)
             yield Request(image_url, meta={'image_name': item['image_name'] + str(i)})
 
     def file_path(self, request, response=None, info=None):
